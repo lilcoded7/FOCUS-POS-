@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Activation | Verify Your Account</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 450px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(to bottom right, rgba(255,255,255,0.2), rgba(255,255,255,0));
+            transform: rotate(45deg);
+            z-index: 0;
+        }
+        
+        .content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .logo {
+            margin-bottom: 25px;
+        }
+        
+        .logo i {
+            font-size: 50px;
+            color: #6a11cb;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        p {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .input-box {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        .input-box input {
+            width: 100%;
+            padding: 18px 20px;
+            padding-left: 50px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 18px;
+            color: #2c3e50;
+            outline: none;
+            transition: all 0.3s ease;
+            letter-spacing: 8px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .input-box input:focus {
+            border-color: #6a11cb;
+            box-shadow: 0 5px 15px rgba(106, 17, 203, 0.1);
+        }
+        
+        .input-box i {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6a11cb;
+            font-size: 20px;
+        }
+        
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(106, 17, 203, 0.3);
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(106, 17, 203, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .resend {
+            margin-top: 25px;
+            color: #7f8c8d;
+        }
+        
+        .resend a {
+            color: #6a11cb;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .resend a:hover {
+            text-decoration: underline;
+        }
+        
+        .animation-container {
+            margin: 25px 0;
+        }
+        
+        .circle {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            border-radius: 50%;
+            margin: 0 5px;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        
+        .circle:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        
+        .circle:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5);
+                opacity: 0.7;
+            }
+        }
+        
+        .success-message {
+            display: none;
+            color: #2ecc71;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+        
+        .message {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .input-box input {
+                padding: 14px 15px;
+                padding-left: 45px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content">
+            {% for message in messages %}
+                <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+            
+            <div class="logo">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h1>Account Activation</h1>
+            <p>Please enter code below to verify your account.</p>
+            
+            <div class="animation-container">
+                <div class="circle"></div>
+                <div class="circle"></div>
+                <div class="circle"></div>
+            </div>
+            
+            <form method="POST" action="">
+                {% csrf_token %}
+                <div class="input-box">
+                    <i class="fas fa-key"></i>
+                    {{ form.code }}
+                </div>
+                
+                <button type="submit" class="btn">Activate Account</button>
+            </form>
+            
+            <div class="resend">
+                Didn't receive the code? <a href="#">contact support or whatsapp: +0507659441</a>
+            </div>
+
+            <div class="resend">
+                Account Already Activated <a href="{% url 'login_view' %}">click here to login </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on input
+            const codeInput = document.querySelector('input[name="code"]');
+            if (codeInput) {
+                codeInput.focus();
+                
+                // Format code input with dashes (optional)
+                codeInput.addEventListener('input', function() {
+                    let value = this.value.replace(/-/g, '');
+                    if (value.length > 3) {
+                        value = value.substring(0, 3) + '-' + value.substring(3, 6);
+                    }
+                    this.value = value;
+                });
+            }
+        });
+    </script>
+</body>
+</html>

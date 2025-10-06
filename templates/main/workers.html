@@ -1,0 +1,416 @@
+{% extends 'main/base.html' %}
+{% load static %}
+{% block content %}
+<div class="reports-container">
+    <div class="reports-header">
+        <h2>Workers</h2>
+    </div>
+
+    <div class="workers-container">
+        <div class="header-actions">
+            <button id="createWorkerBtn" class="btn btn-primary">Create Worker</button>
+        </div>
+
+        <!-- Messages display -->
+        {% if messages %}
+        <div class="messages-container">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+                <span class="close-message">&times;</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="workers-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Worker ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone Number</th>
+                        <th>ID Card</th>
+                        <th>ID Image</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="workersTableBody">
+                    {% for worker in workers %}
+                    <tr>
+                        <td>{{ worker.id }}</td>
+                        <td>{{ worker.name }}</td>
+                        <td>{{ worker.email }}</td>
+                        <td>{{ worker.phone_number }}</td>
+                        <td>{{ worker.id_card }}</td>
+                        <td>
+                            {% if worker.id_image %}
+                                <img src="{{ worker.id_image.url }}" alt="ID Image" class="id-image">
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{% url 'delete_worker' worker.id %}" class="delete-btn">
+                                    <i class="fas fa-trash"></i> Delete
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create Worker Modal -->
+    <div id="createWorkerModal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Create Worker</h3>
+                    <button type="button" class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="workerForm" method="post" enctype="multipart/form-data" action="{% url 'create_worker' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="id_name">Role*</label>
+                            {{ form.role }}
+                            {% if form.role.errors %}
+                                <div class="error-message">{{ form.role.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="id_name">Name*</label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                                <div class="error-message">{{ form.name.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="id_email">Email*</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="error-message">{{ form.email.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="id_phone_number">Phone Number</label>
+                            {{ form.phone_number }}
+                            {% if form.phone_number.errors %}
+                                <div class="error-message">{{ form.phone_number.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="id_id_card">ID Card</label>
+                            {{ form.id_card }}
+                            {% if form.id_card.errors %}
+                                <div class="error-message">{{ form.id_card.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="id_id_image">ID Image</label>
+                            {{ form.id_image }}
+                            {% if form.id_image.errors %}
+                                <div class="error-message">{{ form.id_image.errors.as_text }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Worker</button>
+                            <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Modal handling
+    const modal = document.getElementById("createWorkerModal");
+    const openBtn = document.getElementById("createWorkerBtn");
+    const closeBtns = document.querySelectorAll(".close-modal");
+    
+    openBtn.onclick = function() {
+        modal.style.display = "block";
+        document.body.style.overflow = "hidden"; // Prevent scrolling when modal is open
+    }
+    
+    closeBtns.forEach(btn => {
+        btn.onclick = function() {
+            modal.style.display = "none";
+            document.body.style.overflow = "auto";
+            // Clear form errors when closing
+            document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+        }
+    });
+    
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+            document.body.style.overflow = "auto";
+        }
+    }
+    
+    // Close message alerts
+    document.querySelectorAll('.close-message').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.parentElement.style.display = 'none';
+        });
+    });
+    
+    // Form submission handling
+    const workerForm = document.getElementById('workerForm');
+    if (workerForm) {
+        workerForm.addEventListener('submit', function(e) {
+            // You could add client-side validation here if needed
+        });
+    }
+    
+    // If there are form errors, open the modal automatically
+    {% if form.errors %}
+    modal.style.display = "block";
+    document.body.style.overflow = "hidden";
+    {% endif %}
+});
+</script>
+
+<style>
+/* Main container styles */
+.reports-container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.workers-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.header-actions {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Table styles */
+.workers-table {
+    overflow-x: auto;
+}
+
+.workers-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.workers-table th, .workers-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.workers-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+}
+
+.id-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.delete-btn {
+    color: #dc3545;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.delete-btn:hover {
+    text-decoration: underline;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 1050;
+    overflow-y: auto;
+}
+
+.modal-dialog {
+    margin: 30px auto;
+    max-width: 600px;
+    width: 90%;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6c757d;
+    padding: 0;
+    line-height: 1;
+}
+
+.close-modal:hover {
+    color: #343a40;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+/* Form styles */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-group input, 
+.form-group select {
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    height: calc(2.25rem + 2px);
+}
+
+.form-group input[type="file"] {
+    padding: 0.375rem 0;
+    height: auto;
+}
+
+.error-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 0.375rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+/* Messages styles */
+.messages-container {
+    margin-bottom: 20px;
+}
+
+.alert {
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error, .alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.close-message {
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .workers-table th, 
+    .workers-table td {
+        padding: 8px 10px;
+    }
+    
+    .modal-dialog {
+        width: 95%;
+        margin: 10px auto;
+    }
+}
+</style>
+{% endblock content %}

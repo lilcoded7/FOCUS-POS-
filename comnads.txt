@@ -1,0 +1,17 @@
+pyinstaller --onefile --noconsole ^
+  --name SetupBackend ^
+  --add-data "templates;templates" ^
+  --add-data "staticfiles;staticfiles" ^
+  --add-data "media;media" ^
+  --add-data "accounts;accounts" ^
+  --add-data "shop;shop" ^
+  --add-data "db.sqlite3;." ^
+  --hidden-import whitenoise ^
+  --hidden-import whitenoise.middleware ^
+  runserver.py
+
+
+second command
+
+npm run package
+
