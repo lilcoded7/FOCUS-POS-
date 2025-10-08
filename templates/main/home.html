@@ -209,593 +209,362 @@
     </div>
     
     <script>
-        const menuToggle = document.querySelector('.menu-toggle');
-        const sidebar = document.querySelector('.sidebar');
-        const sidebarOverlay = document.querySelector('.sidebar-overlay');
-        const customerPhoneInput = document.getElementById('customer-phone');
-        const customerNameInput = document.getElementById('customer-name');
-        let searchTimeout;
-        
-        menuToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
+const menuToggle = document.querySelector('.menu-toggle');
+const sidebar = document.querySelector('.sidebar');
+const sidebarOverlay = document.querySelector('.sidebar-overlay');
+const customerPhoneInput = document.getElementById('customer-phone');
+const customerNameInput = document.getElementById('customer-name');
+let searchTimeout;
+
+menuToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+    sidebarOverlay.classList.toggle('active');
+});
+
+sidebarOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+});
+
+document.querySelectorAll('.category-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        const category = this.textContent === 'All Products' ? '' : this.textContent;
+        filterProductsByCategory(category);
+    });
+});
+
+function filterProductsByCategory(category) {
+    document.querySelectorAll('.product-card').forEach(card => {
+        const cardCategory = card.getAttribute('data-category');
+        card.style.display = (category === '' || cardCategory === category) ? 'block' : 'none';
+    });
+}
+
+document.querySelector('.search-box input').addEventListener('input', function() {
+    const term = this.value.toLowerCase();
+    document.querySelectorAll('.product-card').forEach(card => {
+        const name = card.querySelector('h4').textContent.toLowerCase();
+        card.style.display = name.includes(term) ? 'block' : 'none';
+    });
+});
+
+document.querySelectorAll('.product-card').forEach(card => {
+    card.addEventListener('click', function() {
+        const productId = this.getAttribute('data-id');
+        addToOrder(productId);
+        this.style.transform = 'scale(0.95)';
+        setTimeout(() => this.style.transform = 'scale(1)', 200);
+    });
+});
+
+async function addToOrder(productId) {
+    try {
+        const response = await fetch(`/add-to-order/${productId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({quantity: 1})
         });
-        
-        sidebarOverlay.addEventListener('click', () => {
-            sidebar.classList.remove('active');
-            sidebarOverlay.classList.remove('active');
+        if (!response.ok) throw new Error('Failed to add to order');
+        const data = await response.json();
+        updateOrderSummary(data.order_items);
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('danger', 'Failed to add product to order');
+    }
+}
+
+async function updateQuantity(itemId, change) {
+    const buttons = document.querySelectorAll('.qty-btn');
+    buttons.forEach(btn => btn.disabled = true);
+    try {
+        const response = await fetch(`/update-order-item/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({change: change})
         });
+        if (!response.ok) throw new Error('Failed to update quantity');
+        const data = await response.json();
+        if (data.success) {
+            updateOrderSummary(data.order_items);
+        } else {
+            throw new Error(data.error || 'Failed to update quantity');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('danger', 'Failed to update quantity: ' + error.message);
+    } finally {
+        setTimeout(() => {
+            document.querySelectorAll('.qty-btn').forEach(btn => btn.disabled = false);
+        }, 300);
+    }
+}
 
-        document.querySelectorAll('.category-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                const category = this.textContent === 'All Products' ? '' : this.textContent;
-                filterProductsByCategory(category);
-            });
+async function completeOrder() {
+    const checkoutBtn = document.querySelector('.checkout-btn');
+    const btnText = checkoutBtn.querySelector('.btn-text');
+    const btnLoading = checkoutBtn.querySelector('.btn-loading');
+    const phoneNumber = customerPhoneInput.value.trim();
+    const customerName = customerNameInput.value.trim();
+    if (!phoneNumber && !customerName) {
+        showAlert('danger', 'Please enter either customer name or phone number');
+        return;
+    }
+    if (phoneNumber && phoneNumber.length < 10) {
+        showAlert('danger', 'Please enter a valid phone number (10 digits)');
+        return;
+    }
+    btnText.style.display = 'none';
+    btnLoading.style.display = 'inline-block';
+    checkoutBtn.disabled = true;
+    try {
+        const response = await fetch('/complete-order/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                PhoneNumber: phoneNumber,
+                CustomerName: customerName
+            })
         });
-
-        function filterProductsByCategory(category) {
-            document.querySelectorAll('.product-card').forEach(card => {
-                const cardCategory = card.getAttribute('data-category');
-                if (category === '' || cardCategory === category) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        }
-
-        document.querySelector('.search-box input').addEventListener('input', function() {
-            const term = this.value.toLowerCase();
-            document.querySelectorAll('.product-card').forEach(card => {
-                const name = card.querySelector('h4').textContent.toLowerCase();
-                card.style.display = name.includes(term) ? 'block' : 'none';
-            });
-        });
-
-        document.querySelectorAll('.product-card').forEach(card => {
-            card.addEventListener('click', function() {
-                const productId = this.getAttribute('data-id');
-                addToOrder(productId);
-                this.style.transform = 'scale(0.95)';
-                setTimeout(() => this.style.transform = 'scale(1)', 200);
-            });
-        });
-
-        async function addToOrder(productId) {
-            try {
-                const response = await fetch(`/add-to-order/${productId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({quantity: 1})
-                });
-                
-                if (!response.ok) throw new Error('Failed to add to order');
-                
-                const data = await response.json();
-                updateOrderSummary(data.order_items);
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('danger', 'Failed to add product to order');
-            }
-        }
-
-        async function updateQuantity(itemId, change) {
-            try {
-                const response = await fetch(`/update-order-item/${itemId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({change: change})
-                });
-                
-                if (!response.ok) throw new Error('Failed to update quantity');
-                
-                const data = await response.json();
-                if (data.success) {
-                    updateOrderSummary(data.order_items);
-                } else {
-                    throw new Error(data.error || 'Failed to update quantity');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('danger', 'Failed to update quantity: ' + error.message);
-            }
-        }
-
-        async function completeOrder() {
-            const checkoutBtn = document.querySelector('.checkout-btn');
-            const btnText = checkoutBtn.querySelector('.btn-text');
-            const btnLoading = checkoutBtn.querySelector('.btn-loading');
-
-            const phoneNumber = customerPhoneInput.value.trim();
-            const customerName = customerNameInput.value.trim();
-
-            if (!phoneNumber && !customerName) {
-                showAlert('danger', 'Please enter either customer name or phone number');
-                return;
-            }
-            
-            if (phoneNumber && phoneNumber.length < 10) {
-                showAlert('danger', 'Please enter a valid phone number (10 digits)');
-                return;
-            }
-            
-            btnText.style.display = 'none';
-            btnLoading.style.display = 'inline-block';
-            checkoutBtn.disabled = true;
-            
-            try {
-                const response = await fetch('/complete-order/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({
-                        PhoneNumber: phoneNumber,
-                        CustomerName: customerName
-                    })
-                });
-                
-                if (!response.ok) throw new Error('Failed to complete order');
-                
-                const data = await response.json();
-                if (data.success) {
-                    showLoadingOverlay('Order completed successfully!');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
-                } else {
-                    throw new Error(data.error || 'Failed to complete order');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('danger', error.message);
-            } finally {
-                btnText.style.display = 'inline-block';
-                btnLoading.style.display = 'none';
-                checkoutBtn.disabled = false;
-            }
-        }
-
-        function updateOrderSummary(orderItems) {
-            const orderItemsContainer = document.querySelector('.order-items');
-            const orderTotalContainer = document.querySelector('.order-total');
-            
-            orderItemsContainer.innerHTML = '';
-            
-            if (orderItems.length === 0) {
-                orderItemsContainer.innerHTML = '<p style="text-align: center; color: #666;">No items in order</p>';
-            } else {
-                orderItems.forEach(item => {
-                    const itemElement = document.createElement('div');
-                    itemElement.className = 'order-item';
-                    itemElement.innerHTML = `
-                        <div class="item-info">
-                            <h4>${item.product_name}</h4>
-                            <div class="price">₵${item.product_price.toFixed(2)}</div>
-                        </div>
-                        <div class="item-qty">
-                            <button type="button" class="qty-btn" data-item-id="${item.id}" data-change="-1">-</button>
-                            <span class="qty-display">${item.quantity}</span>
-                            <button type="button" class="qty-btn" data-item-id="${item.id}" data-change="1">+</button>
-                        </div>
-                    `;
-                    orderItemsContainer.appendChild(itemElement);
-                });
-            }
-            
-            const subtotal = orderItems.reduce((sum, item) => sum + (item.product_price * item.quantity), 0);
-            const total = subtotal;
-            
-            orderTotalContainer.innerHTML = `
-                <div>
-                    <span>Subtotal</span>
-                    <span>₵${subtotal.toFixed(2)}</span>
-                </div>
-                <div class="grand-total">
-                    <span>Total</span>
-                    <span>₵${total.toFixed(2)}</span>
-                </div>
-            `;
-            
-            updateCheckoutButtonState();
-        }
-
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('qty-btn')) {
-                e.preventDefault();
-                e.stopPropagation();
-                const itemId = e.target.getAttribute('data-item-id');
-                const change = parseInt(e.target.getAttribute('data-change'));
-                updateQuantity(itemId, change);
-            }
-        });
-
-        async function loadActiveOrder() {
-            try {
-                const response = await fetch('/get-active-order/');
-                if (!response.ok) throw new Error('Failed to load active order');
-                const data = await response.json();
-                if (data.order_items) {
-                    updateOrderSummary(data.order_items);
-                }
-            } catch (error) {
-                console.error('Error loading active order:', error);
-            }
-        }
-
-        async function loadRecentOrders() {
-            try {
-                const response = await fetch('/get-recent-orders/');
-                if (!response.ok) throw new Error('Failed to load recent orders');
-            } catch (error) {
-                console.error('Error loading recent orders:', error);
-            }
-        }
-
-        async function searchCustomers(query, type) {
-            if (query.length < 2) {
-                clearSuggestions(type);
-                return;
-            }
-
-            try {
-                const response = await fetch(`/search-customers/?q=${encodeURIComponent(query)}&type=${type}`);
-                if (!response.ok) throw new Error('Failed to search customers');
-                
-                const data = await response.json();
-                displayCustomerSuggestions(data.customers, type);
-            } catch (error) {
-                console.error('Error searching customers:', error);
-            }
-        }
-
-        function displayCustomerSuggestions(customers, type) {
-            const suggestionsContainer = document.getElementById(`${type}-suggestions`);
-            suggestionsContainer.innerHTML = '';
-
-            if (customers.length === 0) {
-                suggestionsContainer.style.display = 'none';
-                return;
-            }
-
-            customers.forEach(customer => {
-                const suggestionItem = document.createElement('div');
-                suggestionItem.className = 'customer-suggestion-item';
-                suggestionItem.innerHTML = `
-                    <div class="customer-info">
-                        <strong>${customer.name}</strong>
-                        <span>${customer.phone_number}</span>
-                    </div>
-                `;
-                suggestionItem.addEventListener('click', () => {
-                    selectCustomer(customer);
-                });
-                suggestionsContainer.appendChild(suggestionItem);
-            });
-
-            suggestionsContainer.style.display = 'block';
-        }
-
-        function selectCustomer(customer) {
-            customerNameInput.value = customer.name;
-            customerPhoneInput.value = customer.phone_number;
-            
-            document.getElementById('name-suggestions').style.display = 'none';
-            document.getElementById('phone-suggestions').style.display = 'none';
-            
-            customerPhoneInput.style.borderColor = '#28a745';
-            customerNameInput.style.borderColor = '#28a745';
-            
-            updateCheckoutButtonState();
-        }
-
-        function clearSuggestions(type) {
-            const suggestionsContainer = document.getElementById(`${type}-suggestions`);
-            suggestionsContainer.innerHTML = '';
-            suggestionsContainer.style.display = 'none';
-        }
-
-        customerNameInput.addEventListener('input', function() {
-            const name = this.value.trim();
-            
-            if (name.length > 0) {
-                this.style.borderColor = '#28a745';
-            } else {
-                this.style.borderColor = '#e0e0e0';
-            }
-
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                searchCustomers(name, 'name');
-            }, 300);
-            
-            updateCheckoutButtonState();
-        });
-
-        customerPhoneInput.addEventListener('input', function() {
-            const phone = this.value.trim();
-            const validationMessage = document.querySelector('.phone-validation-message');
-            
-            if (phone.length >= 10) {
-                this.style.borderColor = '#28a745';
-                validationMessage.textContent = 'Valid phone number';
-                validationMessage.className = 'phone-validation-message valid';
-            } else if (phone.length > 0) {
-                this.style.borderColor = '#dc3545';
-                validationMessage.textContent = 'Phone number must be at least 10 digits';
-                validationMessage.className = 'phone-validation-message invalid';
-            } else {
-                this.style.borderColor = '#e0e0e0';
-                validationMessage.textContent = '';
-                validationMessage.className = 'phone-validation-message';
-            }
-
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                searchCustomers(phone, 'phone');
-            }, 300);
-            
-            updateCheckoutButtonState();
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.customer-phone-container')) {
-                clearSuggestions('name');
-                clearSuggestions('phone');
-            }
-        });
-
-        function showCancelForm(orderId) {
-            const modal = document.getElementById('cancelModal');
-            document.getElementById('cancelOrderId').value = orderId;
-            modal.style.display = 'flex';
-        }
-
-        async function handleCancelSubmit(e) {
-            e.preventDefault();
-            const form = e.target;
-            const formData = new FormData(form);
-            const orderId = document.getElementById('cancelOrderId').value;
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalBtnText = submitBtn.innerHTML;
-            
-            try {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-                
-                const response = await fetch(`/cancel-order/${orderId}/`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showAlert('success', data.message || 'Order canceled successfully');
-                    closeModal('cancelModal');
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    showAlert('danger', data.message || 'Failed to cancel order');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('danger', 'An error occurred while canceling the order');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnText;
-            }
-        }
-
-        async function viewOrderDetails(orderId) {
-            const orderDetailsContent = document.getElementById('orderDetailsContent');
-            orderDetailsContent.innerHTML = `
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i> Loading order details...
-                </div>
-            `;
-            
-            document.getElementById('viewModal').style.display = 'flex';
-            
-            try {
-                const response = await fetch(`/get-order-details/${orderId}/`);
-                const data = await response.json();
-                
-                const orderDate = new Date(data.order.created_at);
-                const formattedDate = orderDate.toLocaleString();
-                
-                let itemsTable = '';
-                if (data.order_items && data.order_items.length > 0) {
-                    itemsTable = `
-                        <h4 style="margin: 20px 0 10px; color: #4361ee;">Items</h4>
-                        <div style="width: 100%; overflow: auto;">
-                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                                <thead>
-                                    <tr style="background-color: #f8f9fa;">
-                                        <th style="text-align: left; padding: 10px; border-bottom: 1px solid #ddd;">Item</th>
-                                        <th style="text-align: right; padding: 10px; border-bottom: 1px solid #ddd;">Price</th>
-                                        <th style="text-align: right; padding: 10px; border-bottom: 1px solid #ddd;">Qty</th>
-                                        <th style="text-align: right; padding: 10px; border-bottom: 1px solid #ddd;">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${data.order_items.map(item => `
-                                        <tr>
-                                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.product.name}</td>
-                                            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₵${item.product.selling_price}</td>
-                                            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${item.quantity}</td>
-                                            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₵${item.get_total_product_price}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                }
-                
-                orderDetailsContent.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="font-weight: bold;">Order ID:</span>
-                            <span>${data.order.order_id}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="font-weight: bold;">Date:</span>
-                            <span>${formattedDate}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                            <span style="font-weight: bold;">Status:</span>
-                            <span style="background-color: #e6f7ff; color: #1890ff; padding: 3px 8px; border-radius: 4px;">
-                                ${data.order.status}
-                            </span>
-                        </div>
-                    </div>
-                    ${itemsTable}
-                    <div style="border-top: 1px solid #eee; padding-top: 15px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Subtotal:</span>
-                            <span>₵${data.order.total_price}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1em; margin-top: 10px;">
-                            <span>Total:</span>
-                            <span>₵${data.order.total_price}</span>
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error loading order details:', error);
-                orderDetailsContent.innerHTML = `
-                    <div class="alert alert-danger">
-                        Error loading order details: ${error.message}
-                    </div>
-                `;
-            }
-        }
-
-        async function deleteOrder() {
-            const orderId = document.getElementById('deleteOrderId').value;
-            try {
-                const response = await fetch(`/delete-order/${orderId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showAlert('success', 'Order deleted successfully');
-                    closeModal('deleteModal');
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    showAlert('danger', data.message || 'Failed to delete order');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('danger', 'An error occurred while deleting the order');
-            }
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        function printOrder() {
-            const printContent = document.getElementById('orderDetailsContent').innerHTML;
-            const originalContent = document.body.innerHTML;
-            
-            document.body.innerHTML = `
-                <div style="padding: 20px; font-family: Arial, sans-serif;">
-                    <h2 style="text-align: center; margin-bottom: 20px;">Order Receipt</h2>
-                    ${printContent}
-                </div>
-            `;
-            
-            window.print();
-            document.body.innerHTML = originalContent;
-            document.getElementById('viewModal').style.display = 'flex';
-        }
-
-        function showAlert(type, message) {
-            const existingAlert = document.querySelector('.alert');
-            if (existingAlert) {
-                existingAlert.remove();
-            }
-            
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            alert.innerHTML = `
-                ${message}
-                <button class="close">&times;</button>
-            `;
-            
-            document.body.appendChild(alert);
-            
-            alert.querySelector('.close').addEventListener('click', () => {
-                alert.remove();
-            });
-            
+        if (!response.ok) throw new Error('Failed to complete order');
+        const data = await response.json();
+        if (data.success) {
+            showLoadingOverlay('Order completed successfully!');
             setTimeout(() => {
-                alert.style.animation = 'fadeOut 0.3s ease forwards';
-                setTimeout(() => alert.remove(), 300);
-            }, 5000);
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Failed to complete order');
         }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('danger', error.message);
+    } finally {
+        btnText.style.display = 'inline-block';
+        btnLoading.style.display = 'none';
+        checkoutBtn.disabled = false;
+    }
+}
 
-        function showLoadingOverlay(message = '') {
-            const overlay = document.getElementById('loadingOverlay');
-            const content = overlay.querySelector('.loading-content p');
-            
-            if (message) {
-                content.textContent = message;
-            }
-            
-            overlay.style.display = 'flex';
-        }
-
-        function hideLoadingOverlay() {
-            document.getElementById('loadingOverlay').style.display = 'none';
-        }
-
-        function updateCheckoutButtonState() {
-            const checkoutBtn = document.querySelector('.checkout-btn');
-            const phone = customerPhoneInput.value.trim();
-            const name = customerNameInput.value.trim();
-            const hasOrderItems = document.querySelectorAll('.order-item').length > 0;
-            
-            checkoutBtn.disabled = !((phone.length >= 10 || name.length > 0) && hasOrderItems);
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            loadActiveOrder();
-            loadRecentOrders();
-            
-            const cancelForm = document.getElementById('cancelOrderForm');
-            if (cancelForm) {
-                cancelForm.addEventListener('submit', handleCancelSubmit);
-            }
-            
-            function handleResize() {
-                const isMobile = window.innerWidth < 768;
-                sidebar.classList.toggle('active', !isMobile);
-            }
-            
-            window.addEventListener('resize', handleResize);
-            handleResize();
+function updateOrderSummary(orderItems) {
+    const orderItemsContainer = document.querySelector('.order-items');
+    const orderTotalContainer = document.querySelector('.order-total');
+    orderItemsContainer.innerHTML = '';
+    if (orderItems.length === 0) {
+        orderItemsContainer.innerHTML = '<p style="text-align: center; color: #666;">No items in order</p>';
+    } else {
+        orderItems.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = 'order-item';
+            itemElement.setAttribute('data-item-id', item.id);
+            itemElement.innerHTML = `
+                <div class="item-info">
+                    <h4>${item.product_name}</h4>
+                    <div class="price">₵${item.product_price.toFixed(2)}</div>
+                </div>
+                <div class="item-qty">
+                    <button type="button" class="qty-btn" data-change="-1">-</button>
+                    <span class="qty-display">${item.quantity}</span>
+                    <button type="button" class="qty-btn" data-change="1">+</button>
+                </div>
+            `;
+            orderItemsContainer.appendChild(itemElement);
         });
-    </script>
+    }
+    const subtotal = orderItems.reduce((sum, item) => sum + (item.product_price * item.quantity), 0);
+    const total = subtotal;
+    orderTotalContainer.innerHTML = `
+        <div>
+            <span>Subtotal</span>
+            <span>₵${subtotal.toFixed(2)}</span>
+        </div>
+        <div class="grand-total">
+            <span>Total</span>
+            <span>₵${total.toFixed(2)}</span>
+        </div>
+    `;
+    updateCheckoutButtonState();
+}
+
+function setupQuantityButtons() {
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.qty-btn');
+        if (btn) {
+            e.preventDefault();
+            const orderItem = btn.closest('.order-item');
+            const itemId = orderItem.getAttribute('data-item-id');
+            const change = parseInt(btn.getAttribute('data-change'));
+            setTimeout(() => {
+                updateQuantity(itemId, change);
+            }, 50);
+        }
+    });
+}
+
+async function loadActiveOrder() {
+    try {
+        const response = await fetch('/get-active-order/');
+        if (!response.ok) throw new Error('Failed to load active order');
+        const data = await response.json();
+        if (data.order_items) {
+            updateOrderSummary(data.order_items);
+        }
+    } catch (error) {
+        console.error('Error loading active order:', error);
+    }
+}
+
+async function loadRecentOrders() {
+    try {
+        const response = await fetch('/get-recent-orders/');
+        if (!response.ok) throw new Error('Failed to load recent orders');
+    } catch (error) {
+        console.error('Error loading recent orders:', error);
+    }
+}
+
+async function searchCustomers(query, type) {
+    if (query.length < 2) {
+        clearSuggestions(type);
+        return;
+    }
+    try {
+        const response = await fetch(`/search-customers/?q=${encodeURIComponent(query)}&type=${type}`);
+        if (!response.ok) throw new Error('Failed to search customers');
+        const data = await response.json();
+        displayCustomerSuggestions(data.customers, type);
+    } catch (error) {
+        console.error('Error searching customers:', error);
+    }
+}
+
+function displayCustomerSuggestions(customers, type) {
+    const suggestionsContainer = document.getElementById(`${type}-suggestions`);
+    suggestionsContainer.innerHTML = '';
+    if (customers.length === 0) {
+        suggestionsContainer.style.display = 'none';
+        return;
+    }
+    customers.forEach(customer => {
+        const suggestionItem = document.createElement('div');
+        suggestionItem.className = 'customer-suggestion-item';
+        suggestionItem.innerHTML = `
+            <div class="customer-info">
+                <strong>${customer.name}</strong>
+                <span>${customer.phone_number}</span>
+            </div>
+        `;
+        suggestionItem.addEventListener('click', () => {
+            selectCustomer(customer);
+        });
+        suggestionsContainer.appendChild(suggestionItem);
+    });
+    suggestionsContainer.style.display = 'block';
+}
+
+function selectCustomer(customer) {
+    customerNameInput.value = customer.name;
+    customerPhoneInput.value = customer.phone_number;
+    document.getElementById('name-suggestions').style.display = 'none';
+    document.getElementById('phone-suggestions').style.display = 'none';
+    customerPhoneInput.style.borderColor = '#28a745';
+    customerNameInput.style.borderColor = '#28a745';
+    updateCheckoutButtonState();
+}
+
+function clearSuggestions(type) {
+    const suggestionsContainer = document.getElementById(`${type}-suggestions`);
+    suggestionsContainer.innerHTML = '';
+    suggestionsContainer.style.display = 'none';
+}
+
+customerNameInput.addEventListener('input', function() {
+    const name = this.value.trim();
+    this.style.borderColor = name.length > 0 ? '#28a745' : '#e0e0e0';
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        searchCustomers(name, 'name');
+    }, 300);
+    updateCheckoutButtonState();
+});
+
+customerPhoneInput.addEventListener('input', function() {
+    const phone = this.value.trim();
+    const validationMessage = document.querySelector('.phone-validation-message');
+    if (phone.length >= 10) {
+        this.style.borderColor = '#28a745';
+        validationMessage.textContent = 'Valid phone number';
+        validationMessage.className = 'phone-validation-message valid';
+    } else if (phone.length > 0) {
+        this.style.borderColor = '#dc3545';
+        validationMessage.textContent = 'Phone number must be at least 10 digits';
+        validationMessage.className = 'phone-validation-message invalid';
+    } else {
+        this.style.borderColor = '#e0e0e0';
+        validationMessage.textContent = '';
+        validationMessage.className = 'phone-validation-message';
+    }
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        searchCustomers(phone, 'phone');
+    }, 300);
+    updateCheckoutButtonState();
+});
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.customer-phone-container')) {
+        clearSuggestions('name');
+        clearSuggestions('phone');
+    }
+});
+
+function showAlert(type, message) {
+    const existingAlert = document.querySelector('.alert');
+    if (existingAlert) existingAlert.remove();
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.innerHTML = `${message}<button class="close">&times;</button>`;
+    document.body.appendChild(alert);
+    alert.querySelector('.close').addEventListener('click', () => alert.remove());
+    setTimeout(() => {
+        alert.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => alert.remove(), 300);
+    }, 5000);
+}
+
+function updateCheckoutButtonState() {
+    const checkoutBtn = document.querySelector('.checkout-btn');
+    const phone = customerPhoneInput.value.trim();
+    const name = customerNameInput.value.trim();
+    const hasOrderItems = document.querySelectorAll('.order-item').length > 0;
+    checkoutBtn.disabled = !((phone.length >= 10 || name.length > 0) && hasOrderItems);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    setupQuantityButtons();
+    loadActiveOrder();
+    loadRecentOrders();
+    const cancelForm = document.getElementById('cancelOrderForm');
+    if (cancelForm) cancelForm.addEventListener('submit', handleCancelSubmit);
+    function handleResize() {
+        const isMobile = window.innerWidth < 768;
+        sidebar.classList.toggle('active', !isMobile);
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize();
+});
+</script>
+
 
     <style>
         .loading-overlay {
