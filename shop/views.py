@@ -18,7 +18,7 @@ from shop.models.workers import Worker
 from django.contrib.auth import get_user_model, logout
 from shop.serializer import ActivateAccountSerializer
 from django.db.models import Q
-from rest_framework import generics 
+from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from shop.models.customers import Customer
 from shop.models.riders import Rider
@@ -34,24 +34,25 @@ import json
 def check_account_is_live(request):
 
     account_status = POS.objects.all().first()
-   
+
     if not account_status.is_live and not account_status.always_live:
         logout(request)
-        messages.success(request, 'contact support to activate your account')
-        return redirect('login_view')
-    
-    if not account_status.always_live: 
+        messages.success(request, "contact support to activate your account")
+        return redirect("login_view")
+
+    if not account_status.always_live:
         check_and_turn_off_live_two()
         check_and_turn_off_live()
 
-    return None  
+    return None
+
 
 @login_required
 def home(request):
     redirect_response = check_account_is_live(request)
     if redirect_response:
         return redirect_response
-    
+
     today = timezone.localdate()
     cancel_form = CancelOrderForm()
 
@@ -63,11 +64,12 @@ def home(request):
     )
 
     today_orders = Order.objects.filter(
-        status="success",
+        
+        Q(status='pending') |Q(status="success"),
         is_canceled=False,
         created_at__range=(start_datetime, end_datetime),
     )
-    print(today_orders)
+    
     canceled_order = Order.objects.filter(
         is_canceled=True, created_at__range=(start_datetime, end_datetime)
     ).count()
@@ -118,10 +120,10 @@ def home(request):
 
     context = {
         "products": products,
-        'cancel_form':cancel_form,
+        "cancel_form": cancel_form,
         "categories": categories,
         "order_items": order_items,
-        'today_orders':today_orders,
+        "today_orders": today_orders,
         "orders": orders,
         "reasons": reasons,
         "form": form,
@@ -190,25 +192,6 @@ def add_to_order(request, product_id):
         return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-def update_order_item(request, item_id):
-    try:
-        data = json.loads(request.body)
-        change = data.get("change", 0)
-
-        order_item = OrderItem.objects.get(id=item_id)
-        order_item.quantity += change
-
-        if order_item.quantity <= 0:
-            order_item.delete()
-        else:
-            order_item.save()
-
-        return JsonResponse(
-            {"success": True, "order_items": get_order_items_data(order_item.order)}
-        )
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
-
 
 def complete_order(request):
     try:
@@ -217,24 +200,26 @@ def complete_order(request):
 
         data = json.loads(request.body)
 
-        customer_phone = data.get('PhoneNumber')
-        customr_name = data.get('CustomerName')
+        customer_phone = data.get("PhoneNumber")
+        customr_name = data.get("CustomerName")
 
-
-        customer = Customer.objects.create(name=customr_name, phone_number=customer_phone) or None
+        customer = (
+            Customer.objects.create(name=customr_name, phone_number=customer_phone)
+            or None
+        )
 
         if not order or not order.items.exists():
             raise Exception("No active order to complete")
 
-        order.status = "success"
-        order.customer=customer
+        order.status = "pending"
+        order.customer = customer
         order.total_price = order.get_total_price()
         order.save()
         Report.objects.create(
-            user=request.user, 
-            order=order, 
-            context=f'order with the ID: {order.order_id} Completed Successfully',
-            dec=f'order with the ID: {order.order_id} Completed Successfully'
+            user=request.user,
+            order=order,
+            context=f"order with the ID: {order.order_id} Completed Successfully",
+            dec=f"order with the ID: {order.order_id} Completed Successfully",
         )
 
         return JsonResponse({"success": True})
@@ -287,7 +272,6 @@ def get_order_items_data(order):
     ]
 
 
-
 @login_required
 def products(request):
     try:
@@ -328,7 +312,12 @@ def products(request):
             )
         return JsonResponse({"products": products_data})
 
-    context = {"products": products, "categories": categories, 'product_form':product_form, 'category_form':category_form}
+    context = {
+        "products": products,
+        "categories": categories,
+        "product_form": product_form,
+        "category_form": category_form,
+    }
     return render(request, "main/products.html", context)
 
 
@@ -364,9 +353,9 @@ def reports(request):
 def delete_product(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     Report.objects.create(
-        user=request.user, 
-        context=f'Product: {product.name} Completed Successfully',
-        dec=f'Product: {product.name} Completed Successfully'
+        user=request.user,
+        context=f"Product: {product.name} Completed Successfully",
+        dec=f"Product: {product.name} Completed Successfully",
     )
     product.delete()
     messages.success(request, "Product deleted successfully")
@@ -374,7 +363,7 @@ def delete_product(request, product_id):
 
 
 def orders(request):
-  
+
     return render(request, "main/orders.html")
 
 
@@ -444,6 +433,7 @@ def filter_orders(request):
         }
     )
 
+
 @login_required
 def cancel_order(request, order_id):
     try:
@@ -451,53 +441,52 @@ def cancel_order(request, order_id):
     except:
         pass
     order = get_object_or_404(Order, id=order_id)
-    
-    if request.method == 'POST':
-     
-        reason_id = request.POST.get('reason')
-        notes = request.POST.get('notes', '')
-        
+
+    if request.method == "POST":
+
+        reason_id = request.POST.get("reason")
+        notes = request.POST.get("notes", "")
+
         try:
-           
+
             reason = CancelOrder.objects.get(id=reason_id)
-       
+
             order.status = "canceled"
             order.is_canceled = True
             order.save()
 
             Report.objects.create(
-                user=request.user, 
+                user=request.user,
                 order=order,
-                context=f'Order with the ID: {order.order_id} Canceled Reason: {reason}',
-                dec=notes
+                context=f"Order with the ID: {order.order_id} Canceled Reason: {reason}",
+                dec=notes,
             )
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': True,
-                    'message': 'Order canceled successfully'
-                })
+
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {"success": True, "message": "Order canceled successfully"}
+                )
             else:
-                messages.success(request, 'Order canceled successfully')
-                return redirect('home')
-                
+                messages.success(request, "Order canceled successfully")
+                return redirect("home")
+
         except CancelOrder.DoesNotExist:
-            error_msg = 'Invalid cancellation reason'
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': False,
-                    'message': error_msg
-                }, status=400)
+            error_msg = "Invalid cancellation reason"
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {"success": False, "message": error_msg}, status=400
+                )
             else:
                 messages.error(request, error_msg)
-                return redirect('home')
-    
+                return redirect("home")
+
     cancel_form = CancelOrderForm()
-    return render(request, 'main/home.html', {
-        'cancel_form': cancel_form,
-        'orders': Order.objects.all()  
-    })
-            
+    return render(
+        request,
+        "main/home.html",
+        {"cancel_form": cancel_form, "orders": Order.objects.all()},
+    )
+
 
 def delete_order(request, order_id):
     try:
@@ -626,46 +615,48 @@ def product_inventory(request):
         pass
     products = Product.objects.all().order_by("-created_at")
     categories = Category.objects.all()
-    
+
     if request.method == "POST":
-    
+
         product_form = ProductForm(request.POST, request.FILES)
         if product_form.is_valid():
             product_id = request.POST.get("product_id")
             if product_id:
-              
+
                 product = get_object_or_404(Product, id=product_id)
-                product_form = ProductForm(request.POST, request.FILES, instance=product)
+                product_form = ProductForm(
+                    request.POST, request.FILES, instance=product
+                )
                 product_form.save()
                 Report.objects.create(
-                user=request.user, 
-                context=f'Product: {product.name} Created Successfully',
-                dec=f'Product: {product.name} Created Successfully'
+                    user=request.user,
+                    context=f"Product: {product.name} Created Successfully",
+                    dec=f"Product: {product.name} Created Successfully",
                 )
                 messages.success(request, "Product updated successfully!")
             else:
-              
+
                 product_form.save()
                 messages.success(request, "Product created successfully!")
             return redirect("product_inventory")
     else:
         product_form = ProductForm()
 
-   
     category_form = CategoryForm(request.POST or None)
-    if request.method == "POST" and 'category_submit' in request.POST:
+    if request.method == "POST" and "category_submit" in request.POST:
         if category_form.is_valid():
             category_form.save()
             messages.success(request, "Category created successfully!")
             return redirect("product_inventory")
 
     context = {
-        'products': products,
-        'categories': categories,
-        'product_form': product_form,
-        'category_form': category_form,
+        "products": products,
+        "categories": categories,
+        "product_form": product_form,
+        "category_form": category_form,
     }
     return render(request, "main/products.html", context)
+
 
 def product_detail(request, product_id):
     product = get_object_or_404(Product, id=product_id)
@@ -682,17 +673,19 @@ def product_detail(request, product_id):
     }
     return JsonResponse(data)
 
+
 def delete_product(request, product_id):
-    if request.method == 'POST':
+    if request.method == "POST":
         product = get_object_or_404(Product, id=product_id)
         Report.objects.create(
-        user=request.user, 
-        context=f'Product: {product.name} Deleted Successfully',
-        dec=f'Product: {product.name} Deleted Successfully'
+            user=request.user,
+            context=f"Product: {product.name} Deleted Successfully",
+            dec=f"Product: {product.name} Deleted Successfully",
         )
         product.delete()
-        return JsonResponse({'success': True})
-    return JsonResponse({'success': False}, status=400)
+        return JsonResponse({"success": True})
+    return JsonResponse({"success": False}, status=400)
+
 
 @login_required
 def workers(request):
@@ -701,21 +694,21 @@ def workers(request):
     except:
         pass
     workers = Worker.objects.all()
-    form = CreateWorkerForm() 
-    return render(request, 'main/workers.html', {'workers': workers, 'form': form})
+    form = CreateWorkerForm()
+    return render(request, "main/workers.html", {"workers": workers, "form": form})
 
 
 def delete_worker(request, worker_id):
     worker = get_object_or_404(Worker, id=worker_id)
     Report.objects.create(
-    user=request.user, 
-    context=f'Product: {worker.name} Deleted Successfully',
-    dec=f'Product: {worker.name} Deleted Successfully'
+        user=request.user,
+        context=f"Product: {worker.name} Deleted Successfully",
+        dec=f"Product: {worker.name} Deleted Successfully",
     )
     worker.user.delete()
     worker.delete()
-    messages.success(request, 'worker deleted successfully ')
-    return redirect('workers')
+    messages.success(request, "worker deleted successfully ")
+    return redirect("workers")
 
 
 def create_worker(request):
@@ -723,87 +716,90 @@ def create_worker(request):
         has_activated_account(request)
     except:
         pass
-    if request.method == 'POST':
+    if request.method == "POST":
         form = CreateWorkerForm(request.POST, request.FILES)
         if form.is_valid():
-            name = form.cleaned_data['name']
-            email = form.cleaned_data['email']
+            name = form.cleaned_data["name"]
+            email = form.cleaned_data["email"]
             username = name.replace(" ", "").lower()
 
             if User.objects.filter(username=username).exists():
                 messages.error(request, f"Username '{username}' already exists.")
-                return redirect('workers')
+                return redirect("workers")
 
             if User.objects.filter(email=email).exists():
                 messages.error(request, f"Email '{email}' is already in use.")
-                return redirect('workers')
+                return redirect("workers")
 
             user = User.objects.create(
                 username=username,
                 email=email,
             )
-            user.set_password('0000')
+            user.set_password("0000")
             user.save()
 
             worker = form.save(commit=False)
             worker.user = user
             worker.save()
 
-            if worker.role=='Sales' or 'Sales Personnel':
-                worker.user.is_staff=True
+            if worker.role == "Sales" or "Sales Personnel":
+                worker.user.is_staff = True
                 worker.user.save()
-            
-            if worker.role=='Admin':
-                worker.user.is_admin=True
+
+            if worker.role == "Admin":
+                worker.user.is_admin = True
                 worker.user.save()
 
             Report.objects.create(
-            user=request.user, 
-            context=f'Worker: {worker.name} Created Successfully',
-            dec=f'Product: {worker.name} Created Successfully'
+                user=request.user,
+                context=f"Worker: {worker.name} Created Successfully",
+                dec=f"Product: {worker.name} Created Successfully",
             )
 
-            messages.success(request, f"Worker '{name}' created successfully with username '{username}', email '{email}', and default password '0000'.")
-            return redirect('workers')
+            messages.success(
+                request,
+                f"Worker '{name}' created successfully with username '{username}', email '{email}', and default password '0000'.",
+            )
+            return redirect("workers")
 
         else:
             workers = Worker.objects.all()
-            return render(request, 'main/workers.html', {'workers': workers, 'form': form})
+            return render(
+                request, "main/workers.html", {"workers": workers, "form": form}
+            )
 
-    return redirect('workers')
+    return redirect("workers")
 
 
 def search_customers(request):
-    query = request.GET.get('q', '')
-    search_type = request.GET.get('type', 'name')
-    
+    query = request.GET.get("q", "")
+    search_type = request.GET.get("type", "name")
+
     if len(query) < 2:
-        return JsonResponse({'customers': []})
-    
-    if search_type == 'name':
-        customers = Customer.objects.filter(
-            Q(name__icontains=query)
-        )[:10]
+        return JsonResponse({"customers": []})
+
+    if search_type == "name":
+        customers = Customer.objects.filter(Q(name__icontains=query))[:10]
     else:  # phone
-        customers = Customer.objects.filter(
-            Q(phone_number__icontains=query)
-        )[:10]
-    
+        customers = Customer.objects.filter(Q(phone_number__icontains=query))[:10]
+
     customer_list = []
     for customer in customers:
-        customer_list.append({
-            'id': customer.id,
-            'name': customer.name,
-            'phone_number': customer.phone_number
-        })
-    
-    return JsonResponse({'customers': customer_list})
+        customer_list.append(
+            {
+                "id": customer.id,
+                "name": customer.name,
+                "phone_number": customer.phone_number,
+            }
+        )
 
-
+    return JsonResponse({"customers": customer_list})
 
 
 from rest_framework.response import Response
 from rest_framework import status
+
+
 class ActivationAPIView(generics.GenericAPIView):
     serializer_class = ActivateAccountSerializer
     permission_classes = [AllowAny]
@@ -811,137 +807,196 @@ class ActivationAPIView(generics.GenericAPIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
-            return Response({
-                'message': 'Activation code is valid',
-                'status': 'success'
-            }, status=status.HTTP_200_OK)
-        
-        return Response({
-            'message': 'Invalid activation code',
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+            return Response(
+                {"message": "Activation code is valid", "status": "success"},
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {"message": "Invalid activation code", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
 
 def activate_account(request):
     form = ActivationForm()
 
-    if request.method == 'POST':
+    if request.method == "POST":
         form = ActivationForm(request.POST)
         if form.is_valid():
-            code = form.cleaned_data['code'].replace('-', '')
+            code = form.cleaned_data["code"].replace("-", "")
             result = verify_code(request, code)
 
             if result.get("status") == "success":
-                messages.success(request, "Account activated successfully. you can now login your account")
+                messages.success(
+                    request,
+                    "Account activated successfully. you can now login your account",
+                )
             else:
                 error = result.get("error", "Activation failed.")
                 messages.error(request, error)
 
-    return render(request, 'main/account.html', {'form': form})
-
+    return render(request, "main/account.html", {"form": form})
 
 
 def view_order(request, order_id):
     order = get_object_or_404(Order, id=order_id)
 
-    context = {
-        'order':order
-    }
-    return render(request, 'main/view_order_detail.html', context)
+    context = {"order": order}
+    return render(request, "main/view_order_detail.html", context)
 
 
 def order_invoice(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     riders = Rider.objects.all()
-    
-    context = {
-        'order': order,
-        'riders': riders
-    }
-    return render(request, 'main/invoice.html', context)
+
+    context = {"order": order, "riders": riders}
+    return render(request, "main/invoice.html", context)
+
 
 @csrf_exempt
 def assign_order_rider(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-    
-    if request.method == 'POST':
+
+    if request.method == "POST":
         try:
             data = json.loads(request.body)
-            rider_id = data.get('rider_id')
-            
+            rider_id = data.get("rider_id")
+
             if rider_id:
                 rider = get_object_or_404(Rider, id=rider_id)
                 order.rider = rider
                 order.save()
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': 'Rider assigned successfully',
-                    'rider_name': rider.name,
-                    'rider_phone': rider.phne_number
-                })
+
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "message": "Rider assigned successfully",
+                        "rider_name": rider.name,
+                        "rider_phone": rider.phne_number,
+                    }
+                )
             else:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'No rider ID provided'
-                }, status=400)
-                
+                return JsonResponse(
+                    {"success": False, "error": "No rider ID provided"}, status=400
+                )
+
         except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=400)
-    
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
     riders = Rider.objects.all()
-    context = {
-        'order': order,
-        'riders': riders
-    }
-    return render(request, 'main/invoice.html', context)
+    context = {"order": order, "riders": riders}
+    return render(request, "main/invoice.html", context)
+
 
 @csrf_exempt
 def create_rider(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            name = request.POST.get('name')
-            phone_number = request.POST.get('phone_number')
-            id_card = request.POST.get('id_card', '')
-            id_image = request.FILES.get('id_image')
-            
+            name = request.POST.get("name")
+            phone_number = request.POST.get("phone_number")
+            id_card = request.POST.get("id_card", "")
+            id_image = request.FILES.get("id_image")
+
             if not name or not phone_number:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Name and phone number are required'
-                }, status=400)
-            
+                return JsonResponse(
+                    {"success": False, "error": "Name and phone number are required"},
+                    status=400,
+                )
+
             rider = Rider.objects.create(
-                name=name,
-                phne_number=phone_number,
-                id_card=id_card,
-                id_image=id_image
+                name=name, phne_number=phone_number, id_card=id_card, id_image=id_image
             )
-            
-            return JsonResponse({
-                'success': True,
-                'rider_id': rider.id,
-                'message': 'Rider created successfully'
-            })
-            
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "rider_id": rider.id,
+                    "message": "Rider created successfully",
+                }
+            )
+
         except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=400)
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
 
 @csrf_exempt
 def remove_rider_from_order(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-    
-    if request.method == 'POST':
+
+    if request.method == "POST":
         order.rider = None
         order.save()
+
+        return JsonResponse({"success": True, "message": "Rider removed successfully"})
+
+
+@csrf_exempt
+def mark_order_printed(request, order_id):
+    if request.method == 'POST':
+        try:
+            order = Order.objects.get(id=order_id)
+            
+            order.status = "success"
+            order.order_printed = "printed"
+            order.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': 'Order marked as success and printed',
+                'order_status': order.status,
+                'print_status': order.order_printed
+            })
+            
+        except Order.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Order not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@csrf_exempt
+def update_order_item(request, item_id):
+    try:
+        data = json.loads(request.body)
+        change = data.get('change', 0)
+        
+        order_item = OrderItem.objects.get(id=item_id)
+        
+        new_quantity = order_item.quantity + change
+        
+        if new_quantity < 1:
+            return JsonResponse({
+                'success': False,
+                'error': 'Quantity cannot be less than 1'
+            })
+        
+        order_item.quantity = new_quantity
+        order_item.save()
+        
+        order = order_item.order
+        order_items = []
+        for item in order.items.all():
+            order_items.append({
+                'id': item.id,
+                'product_name': item.product.name if item.product else 'Unknown Product',
+                'product_price': float(item.product.selling_price) if item.product else 0.0,
+                'quantity': item.quantity
+            })
         
         return JsonResponse({
             'success': True,
-            'message': 'Rider removed successfully'
+            'order_items': order_items
+        })
+        
+    except OrderItem.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Order item not found'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         })

@@ -7,14 +7,19 @@ from decimal import Decimal
 
 class Order(BaseModel):
     status_choices = [
-        ("pending", "Pending"),
+        ("pending", "pending"),
         ("success", "success"),
         ("wish_list", "Wish List"),
+    ]
+    printing_choices = [
+        ("printed", "printed"),
+        ("pending", "pending"),
     ]
 
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     rider = models.ForeignKey(Rider, on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(max_length=20, choices=status_choices, default="pending")
+    order_printed = models.CharField(default=printing_choices, max_length=100, null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     order_id = models.CharField(max_length=100, null=True, blank=True)
     is_canceled = models.BooleanField(default=False)

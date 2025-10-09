@@ -5,9 +5,8 @@ from shop.views import *
 urlpatterns = [
     path("", home, name="home"),
     path("add-to-order/<int:product_id>/", add_to_order, name="add_to_order"),
-    path(
-        "update-order-item/<int:item_id>/", update_order_item, name="update_order_item"
-    ),
+    path('update-order-item/<int:item_id>/', update_order_item, name='update_order_item'),
+    
     path('search-customers/', search_customers, name='search_customers'),
     path("complete-order/", complete_order, name="complete_order"),
     path("get-active-order/", get_active_order, name="get_active_order"),
@@ -44,4 +43,5 @@ urlpatterns = [
     path('order/<int:order_id>/assign-rider/', assign_order_rider, name='assign_order_rider'),
     path('create-rider/', create_rider, name='create_rider'),
     path('order/<int:order_id>/remove-rider/', remove_rider_from_order, name='remove_rider_from_order'),
+    path('order/<int:order_id>/mark-printed/', mark_order_printed, name='mark_order_printed'),
 ]

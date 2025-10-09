@@ -14,6 +14,15 @@
         </div>
     </div>
 
+    <div class="order-status-display">
+        <div class="status-badges">
+            <span class="status-badge {{ order.status }}">
+                Order: {{ order.status|title }}
+            </span>
+          
+        </div>
+    </div>
+
     <div class="invoice-content">
         <div class="receipt-section">
             <div class="receipt-container">
@@ -31,7 +40,7 @@
 
                 <div class="receipt-title">
                     <h2><i class="fas fa-file-invoice"></i> ORDER RECEIPT <i class="fas fa-file-invoice"></i></h2>
-                    <p>Order #{{ order.id }} • {{ order.created_at|date:"M d, Y" }}</p>
+                    <p>Order #{{ order.id }} • <strong>{{ order.created_at|date:"M d, Y" }}</strong></p>
                 </div>
 
                 <div class="customer-info">
@@ -206,7 +215,6 @@ function printReceipt() {
     const receipt = document.querySelector('.receipt-container').cloneNode(true);
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     
-    // Create the exact same HTML structure and styling for printing
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -309,6 +317,11 @@ function printReceipt() {
                     font-size: 7px;
                     color: #777;
                     margin: 0;
+                }
+                
+                .receipt-container .receipt-title p strong {
+                    font-weight: bold;
+                    color: #000;
                 }
                 
                 .receipt-container .customer-info {
@@ -450,23 +463,101 @@ function printReceipt() {
         </head>
         <body>
             ${receipt.outerHTML}
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(() => {
+                        markOrderAsPrinted();
+                    }, 1000);
+                };
+                
+                function markOrderAsPrinted() {
+                    fetch('/order/{{ order.id }}/mark-printed/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (window.opener) {
+                                window.opener.updateOrderStatus(data);
+                                window.opener.redirectToHome();
+                            }
+                        }
+                    })
+                    .catch(err => console.log('Order status update failed:', err));
+                }
+            <\/script>
         </body>
         </html>
     `);
 
     printWindow.document.close();
     
-    // Wait for content to load then print
+    printWindow.addEventListener('afterprint', function() {
+        markOrderAsPrinted();
+    });
+
     setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-        
-        // Close the window after printing
-        setTimeout(() => {
-            printWindow.close();
-        }, 500);
-    }, 500);
+        markOrderAsPrinted();
+    }, 3000);
 }
+
+function markOrderAsPrinted() {
+    fetch('/order/{{ order.id }}/mark-printed/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            updateOrderStatusUI(data.order_status, data.print_status);
+            redirectToHome();
+        } else {
+            showAlert('danger', data.error || 'Failed to update order status');
+        }
+    })
+    .catch(err => {
+        console.log('Order status update failed:', err);
+        showAlert('danger', 'Failed to update order status');
+    });
+}
+
+function redirectToHome() {
+    setTimeout(() => {
+        window.location.href = "{% url 'home' %}";
+    }, 1500);
+}
+
+function updateOrderStatusUI(orderStatus, printStatus) {
+    const orderBadge = document.querySelector('.status-badge.pending, .status-badge.success');
+    const printBadge = document.querySelector('.status-badge.printed');
+    
+    if (orderBadge) {
+        orderBadge.textContent = `Order: ${orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1)}`;
+        orderBadge.className = `status-badge ${orderStatus}`;
+    }
+    
+    if (printBadge) {
+        printBadge.textContent = `Printed: ${printStatus.charAt(0).toUpperCase() + printStatus.slice(1)}`;
+        printBadge.className = `status-badge ${printStatus}`;
+    }
+}
+
+window.updateOrderStatus = function(data) {
+    if (data.success) {
+        updateOrderStatusUI(data.order_status, data.print_status);
+    }
+};
+
+window.redirectToHome = redirectToHome;
 
 let selectedRiderId = null;
 let isNewRider = false;
@@ -652,7 +743,7 @@ function showAlert(type, message) {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
     gap: 15px;
 }
@@ -667,6 +758,45 @@ function showAlert(type, message) {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+.order-status-display {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.status-badges {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.status-badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.status-badge.pending {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.status-badge.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-badge.printed {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
 }
 
 .invoice-content {
@@ -783,6 +913,11 @@ function showAlert(type, message) {
     font-size: 7px;
     color: #777;
     margin: 0;
+}
+
+.receipt-container .receipt-title p strong {
+    font-weight: bold;
+    color: #000;
 }
 
 .receipt-container .customer-info {
@@ -929,11 +1064,6 @@ function showAlert(type, message) {
     margin: 0;
     color: #666;
     font-size: 0.85rem;
-}
-
-.rider-id {
-    font-size: 0.75rem;
-    color: #999;
 }
 
 .rider-actions {
@@ -1313,7 +1443,8 @@ function showAlert(type, message) {
 @media print {
     .invoice-header, 
     .rider-section,
-    .header-actions {
+    .header-actions,
+    .order-status-display {
         display: none !important;
     }
     
