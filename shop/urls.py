@@ -22,6 +22,7 @@ urlpatterns = [
     path("reports/filter/", filter_reports, name="filter_reports"),
     path("reports/<int:report_id>/detail/", report_detail, name="report_detail"),
     path("reports/<int:report_id>/delete/", delete_report, name="delete_report"),
+    path('orders/get-users/', get_users, name='get_users'),
     path(
         "get-order-details/<int:order_id>/", get_order_details, name="get_order_details"
     ),

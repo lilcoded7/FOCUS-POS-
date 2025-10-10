@@ -64,11 +64,13 @@ def home(request):
     )
 
     today_orders = Order.objects.filter(
-        
-        Q(status='pending') |Q(status="success"),
-        is_canceled=False,
-        created_at__range=(start_datetime, end_datetime),
+    user=request.user,
+    is_canceled=False,
+    created_at__range=(start_datetime, end_datetime)
+    ).filter(
+        status='success'
     )
+
     
     canceled_order = Order.objects.filter(
         is_canceled=True, created_at__range=(start_datetime, end_datetime)
@@ -199,6 +201,7 @@ def complete_order(request):
         order = Order.objects.filter(status="pending").first()
 
         data = json.loads(request.body)
+        print(request.user)
 
         customer_phone = data.get("PhoneNumber")
         customr_name = data.get("CustomerName")
@@ -211,9 +214,10 @@ def complete_order(request):
         if not order or not order.items.exists():
             raise Exception("No active order to complete")
 
-        order.status = "pending"
+        order.status = "success"
         order.customer = customer
         order.total_price = order.get_total_price()
+        order.user=request.user
         order.save()
         Report.objects.create(
             user=request.user,
@@ -367,71 +371,79 @@ def orders(request):
     return render(request, "main/orders.html")
 
 
+def get_users(request):
+    if not request.user.is_admin:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    users = User.objects.all().values('id', 'username')
+    return JsonResponse({'users': list(users)})
+
 def filter_orders(request):
-
-    time_filter = request.GET.get("time_filter", "today")
-    status_filter = request.GET.get("status_filter", "all")
-    custom_date = request.GET.get("custom_date", None)
-
+    if not request.user.is_admin:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    time_filter = request.GET.get('time_filter', 'today')
+    status_filter = request.GET.get('status_filter', 'all')
+    user_filter = request.GET.get('user_filter', 'all')
+    custom_date = request.GET.get('custom_date', '')
+    
+    orders = Order.objects.all()
+    
     now = timezone.now()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
-
-    if time_filter == "today":
-        start_date = today_start
-        end_date = today_end
-    elif time_filter == "yesterday":
-        start_date = today_start - timedelta(days=1)
-        end_date = today_start
-    elif time_filter == "week":
-        start_date = today_start - timedelta(days=today_start.weekday())
-        end_date = today_end
-    elif time_filter == "month":
-        start_date = today_start.replace(day=1)
-        end_date = today_end
-    elif time_filter == "custom" and custom_date:
+    if time_filter == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        orders = orders.filter(created_at__gte=start_date)
+    elif time_filter == 'yesterday':
+        yesterday = now - timedelta(days=1)
+        start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+        orders = orders.filter(created_at__range=(start_date, end_date))
+    elif time_filter == 'week':
+        start_date = now - timedelta(days=now.weekday())
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        orders = orders.filter(created_at__gte=start_date)
+    elif time_filter == 'month':
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        orders = orders.filter(created_at__gte=start_date)
+    elif time_filter == 'custom' and custom_date:
         try:
-            custom_date = datetime.strptime(custom_date, "%Y-%m-%d")
-            start_date = timezone.make_aware(custom_date)
-            end_date = start_date + timedelta(days=1)
+            custom_date_obj = datetime.strptime(custom_date, '%Y-%m-%d').date()
+            start_date = timezone.make_aware(datetime.combine(custom_date_obj, datetime.min.time()))
+            end_date = timezone.make_aware(datetime.combine(custom_date_obj, datetime.max.time()))
+            orders = orders.filter(created_at__range=(start_date, end_date))
         except ValueError:
-            return JsonResponse({"error": "Invalid date format"}, status=400)
-    else:
-        return JsonResponse({"error": "Invalid time filter"}, status=400)
-
-    orders_query = Order.objects.filter(
-        created_at__gte=start_date, created_at__lt=end_date
-    )
-
-    if status_filter != "all":
-        orders_query = orders_query.filter(status=status_filter)
-
-    total_orders = orders_query.count()
-    total_sales = orders_query.aggregate(total=Sum("total_price"))["total"] or 0.00
-    pending_orders = orders_query.filter(status="pending").count()
-
+            pass
+    
+    if status_filter != 'all':
+        orders = orders.filter(status=status_filter)
+    
+    if user_filter != 'all':
+        orders = orders.filter(user_id=user_filter)
+    
     orders_data = []
-    for order in orders_query.order_by("-created_at"):
-        orders_data.append(
-            {
-                "id": order.id,
-                "order_id": order.order_id,
-                "created_at": order.created_at.strftime("%Y-%m-%d %H:%M"),
-                "item_count": order.get_order_quantity(),
-                "total_price": float(order.total_price),
-                "status": order.status,
-                "status_display": order.get_status_display(),
-            }
-        )
-
-    return JsonResponse(
-        {
-            "total_orders": total_orders,
-            "total_sales": total_sales,
-            "pending_orders": pending_orders,
-            "orders": orders_data,
+    for order in orders:
+        order_data = {
+            'id': order.id,
+            'order_id': order.order_id,
+            'created_at': order.created_at.isoformat(),
+            'item_count': order.items.count() if hasattr(order, 'items') else 0,
+            'total_price': str(order.total_price),
+            'status': order.status,
+            'status_display': order.get_status_display(),
+            'user_username': order.user.username if order.user else 'Guest'
         }
-    )
+        orders_data.append(order_data)
+    
+    total_orders = orders.count()
+    total_sales = orders.aggregate(total=Sum('total_price'))['total'] or 0
+    pending_orders = orders.filter(status='pending').count()
+    
+    return JsonResponse({
+        'orders': orders_data,
+        'total_orders': total_orders,
+        'total_sales': total_sales,
+        'pending_orders': pending_orders
+    })
 
 
 @login_required
@@ -956,47 +968,22 @@ def mark_order_printed(request, order_id):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 
-@csrf_exempt
+
 def update_order_item(request, item_id):
     try:
         data = json.loads(request.body)
-        change = data.get('change', 0)
-        
+        change = data.get("change", 0)
+
         order_item = OrderItem.objects.get(id=item_id)
-        
-        new_quantity = order_item.quantity + change
-        
-        if new_quantity < 1:
-            return JsonResponse({
-                'success': False,
-                'error': 'Quantity cannot be less than 1'
-            })
-        
-        order_item.quantity = new_quantity
-        order_item.save()
-        
-        order = order_item.order
-        order_items = []
-        for item in order.items.all():
-            order_items.append({
-                'id': item.id,
-                'product_name': item.product.name if item.product else 'Unknown Product',
-                'product_price': float(item.product.selling_price) if item.product else 0.0,
-                'quantity': item.quantity
-            })
-        
-        return JsonResponse({
-            'success': True,
-            'order_items': order_items
-        })
-        
-    except OrderItem.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Order item not found'
-        })
+        order_item.quantity += change
+
+        if order_item.quantity <= 0:
+            order_item.delete()
+        else:
+            order_item.save()
+
+        return JsonResponse(
+            {"success": True, "order_items": get_order_items_data(order_item.order)}
+        )
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
